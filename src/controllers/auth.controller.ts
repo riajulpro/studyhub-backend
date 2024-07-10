@@ -1,15 +1,19 @@
-import axios from "axios";
 import bycript from "bcryptjs";
-import crypto from "crypto";
-import { Request, Response } from "express";
-import path from "path";
-import { OtpTemplate } from "../clients/template/otpTemplat";
+import jwt from "jsonwebtoken";
 import userModel from "../models/userModel";
 import { catchAsyncError } from "../utils/catchAsyncError";
-import { generateOtp } from "../utils/gtOtp";
-import createToken from "../utils/jwtToken";
-import sendMessage from "../utils/sendMessage";
 
+import {
+  createAcessToken,
+  createForgotPasswordToken,
+  createRefreshToken,
+} from "../utils/jwtToken";
+import sendMessage from "../utils/sendMessage";
+<<<<<<< HEAD
+
+=======
+import sendResponse from "../utils/sendResponse";
+>>>>>>> 155b543a0c937fa048997533accf746325af7a14
 export const authStateChange = catchAsyncError(async (req, res, next) => {
   const { user } = req;
 
@@ -37,19 +41,13 @@ export const register = catchAsyncError(async (req, res, next) => {
 
   const result = await userModel.create({
     ...body,
-    otp: otp,
     password: hashPass,
-    passwordHistory: [hashPass],
   });
-  const user = result.toObject();
-
-  const token = createToken(user, "7d");
 
   res.status(200).json({
     success: true,
     message: "User created successfully",
-    user: { ...result.toObject(), password: "****", otp: 0 },
-    token,
+    data: null,
   });
 });
 
@@ -82,15 +80,24 @@ export const login = catchAsyncError(async (req, res, next) => {
       .status(203)
       .json({ message: "Wrong password", success: false, data: null });
   }
-  const token = createToken(user, "7d");
+  const tokenPayload = {
+    _id: user._id,
+    email: user.email,
+  };
+  const accessToken = createAcessToken(tokenPayload, "7d");
+  const refreshToken = createRefreshToken(tokenPayload);
+
+  const { password: pass, ...resUser } = user.toObject();
 
   res.json({
     success: true,
-    token: token,
-    user: { ...user.toObject(), password: "*****" },
+    accessToken,
+    refreshToken,
+    data: resUser,
   });
 });
 
+<<<<<<< HEAD
 // varify otp
 export const verifyOTP = catchAsyncError(async (req, res, next) => {
   const { otp: reqOtp, email } = req.body;
@@ -193,6 +200,8 @@ export const sendOTP = catchAsyncError(async (req, res, next) => {
   res.json({ message: "OTP sent to your email", success: true });
 });
 
+=======
+>>>>>>> 155b543a0c937fa048997533accf746325af7a14
 // reset password
 export const resetPassword = catchAsyncError(async (req: any, res, next) => {
   const { password, oldPassword, email } = req.body;
@@ -257,12 +266,7 @@ export const forgotPassword = catchAsyncError(async (req, res) => {
       .json({ success: false, message: "No user found with this email!" });
   }
 
-  const token = crypto.randomBytes(20).toString("hex");
-
-  user.resetPasswordToken = token;
-  user.resetPasswordExpires = Date.now() + 300000;
-
-  await user.save();
+  const token = createForgotPasswordToken(user.email);
 
   const url =
     process.env.FRONTEND_BASE_URL || "https://nexusnova-frontend.vercel.app";
@@ -305,11 +309,22 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
   if (!token || !password) {
     return res.status(400).json({ error: "Token and password are required" });
   }
+  let decodedPayload: any = "";
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET as string);
+    decodedPayload = decoded;
+  } catch {
+    return sendResponse(res, {
+      statusCode: 401,
+      success: false,
+      data: null,
+      message: "Ivalid authentication, try again",
+    });
+  }
 
-  const user = await userModel.findOne({
-    resetPasswordToken: token,
-    resetPasswordExpires: { $gt: Date.now() },
-  });
+  const email = decodedPayload.email as string;
+
+  const user = await userModel.findOne({ email });
 
   if (!user) {
     return res
@@ -319,91 +334,12 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
   const hashedPassword = await bycript.hash(password, 10);
 
   user.password = hashedPassword;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpires = undefined;
 
   await user.save();
 
-  res
-    .status(200)
-    .json({ success: true, message: "Password has been successfully reset" });
-});
-
-export const googleSingIn = async (req: Request, res: Response) => {
-  const { accessToken } = req.body;
-
-  const userResponse = await axios.get(
-    "https://www.googleapis.com/oauth2/v3/userinfo",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  const { sub: googleId, name, email, picture, given_name } = userResponse.data;
-
-  const user = await userModel.findOne({ $or: [{ googleId }, { email }] });
-
-  if (!user) {
-    const newUser = await userModel.create({
-      googleId,
-      email,
-      picture,
-      firstName: name,
-      lastName: given_name,
-      isVarify: true,
-    });
-    await newUser.save();
-    const token = createToken(newUser, "7d");
-    return res.status(201).json({
-      success: true,
-      token: token,
-      user: { ...newUser.toObject(), password: "*****" },
-    });
-  }
-
-  const token = createToken(user, "7d");
-
-  res.status(201).json({
+  res.status(200).json({
     success: true,
-    token: token,
-    user: { ...user.toObject(), password: "*****" },
+    message: "Password has been successfully reset",
+    data: null,
   });
-};
-export const facebookSingIn = async (req: Request, res: Response) => {
-  try {
-    const { id, name, email, picture } = req.body;
-    const names = name.split(" ");
-
-    const user = await userModel.findOne({ facebookId: id });
-
-    if (!user) {
-      const newUser = await userModel.create({
-        facebookId: id,
-        email,
-        picture: picture.data.url,
-        firstName: names[0],
-        lastName: names[1],
-        isVarify: true,
-      });
-      await newUser.save();
-      const token = createToken(newUser, "7d");
-      return res.status(201).json({
-        token: token,
-        success: true,
-        user: { ...newUser.toObject(), password: "*****" },
-      });
-    }
-
-    const token = createToken(user, "7d");
-
-    res.status(201).json({
-      success: true,
-      token: token,
-      user: { ...user.toObject(), password: "*****" },
-    });
-  } catch (error) {
-    console.log(error);
-  }
-};
+});

@@ -24,7 +24,10 @@ export const isAuthenticatedUser = async (
       });
     }
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
+<<<<<<< HEAD
     console.log(decoded);
+=======
+>>>>>>> 155b543a0c937fa048997533accf746325af7a14
 
     if (!decoded)
       return res
