@@ -1,15 +1,15 @@
-import axios from "axios";
 import bycript from "bcryptjs";
-import crypto from "crypto";
-import { Request, Response } from "express";
-import path from "path";
-import { OtpTemplate } from "../clients/template/otpTemplat";
+import jwt from "jsonwebtoken";
 import userModel from "../models/userModel";
 import { catchAsyncError } from "../utils/catchAsyncError";
-import { generateOtp } from "../utils/gtOtp";
 
-import { createAcessToken, createRefreshToken } from "../utils/jwtToken";
+import {
+  createAcessToken,
+  createForgotPasswordToken,
+  createRefreshToken,
+} from "../utils/jwtToken";
 import sendMessage from "../utils/sendMessage";
+import sendResponse from "../utils/sendResponse";
 export const authStateChange = catchAsyncError(async (req, res, next) => {
   const { user } = req;
 
@@ -41,7 +41,7 @@ export const register = catchAsyncError(async (req, res, next) => {
     password: hashPass,
     passwordHistory: [hashPass],
   });
-  const { password, otp: OTP, ...user } = result.toObject();
+  const { password, ...user } = result.toObject();
 
   const tokenPayload = {
     _id: result._id,
@@ -94,7 +94,7 @@ export const login = catchAsyncError(async (req, res, next) => {
   const accessToken = createAcessToken(tokenPayload, "7d");
   const refreshToken = createRefreshToken(tokenPayload);
 
-  const { password: pass, otp: OTP, ...resUser } = user.toObject();
+  const { password: pass, ...resUser } = user.toObject();
 
   res.json({
     success: true,
@@ -102,116 +102,6 @@ export const login = catchAsyncError(async (req, res, next) => {
     refreshToken,
     data: resUser,
   });
-});
-
-// varify otp
-export const verifyOTP = catchAsyncError(async (req, res, next) => {
-  const { otp: reqOtp, email } = req.body;
-  if (!reqOtp || !email) {
-    return res.json({
-      message: "email and OTP both are required",
-      success: false,
-    });
-  }
-  const otp = parseInt(reqOtp);
-
-  const user = await userModel.findOne({ otp, email });
-  if (!user) {
-    return res.json({ success: false, message: "Invalid OTP" });
-  }
-
-  const currentTime = new Date();
-  if (user.expireAt && user.expireAt < currentTime) {
-    return res.status(401).json({
-      message: "OTP expired",
-      success: false,
-      sessionExpired: true,
-    });
-  }
-
-  const updateUser = await userModel.findOneAndUpdate(
-    { email: user.email },
-    {
-      $set: {
-        otp: null,
-        isVarify: true,
-      },
-    }
-  );
-
-  const tokenPayload = {
-    _id: user._id,
-    email: user.email,
-  };
-  const accessToken = createAcessToken(tokenPayload, "7d");
-
-  res.json({
-    success: true,
-    message: "User successfuly verified",
-    accessToken,
-  });
-});
-
-// json otp
-export const sendOTP = catchAsyncError(async (req, res, next) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.json({ message: "Email is required to json otp" });
-  }
-
-  // check for user
-  const user = await userModel.findOne({ email });
-  if (!user) {
-    return res.json({
-      message: `No user found with this email -> ${email}`,
-      success: false,
-    });
-  }
-
-  let otp = generateOtp();
-  let isExistOtp = await userModel.findOne({ otp: otp });
-
-  while (isExistOtp) {
-    otp = generateOtp();
-    isExistOtp = await userModel.findOne({ otp: otp });
-  }
-
-  // Set expiration time for OTP
-  const expireAt = new Date();
-  expireAt.setMinutes(expireAt.getMinutes() + 5); // Set expiration time to 5 minutes from now
-
-  await userModel.updateOne(
-    { email },
-    {
-      $set: {
-        otp: otp,
-        expireAt: expireAt, // Set the expiration time
-      },
-    }
-  );
-
-  sendMessage(
-    "legendxpro123455@gmail.com",
-    email,
-    "Verify Your OTP",
-    OtpTemplate(otp),
-    [
-      {
-        filename: "image.jpg",
-        path: path.join(
-          __dirname,
-
-          "..",
-          "clients",
-          "assets",
-          "image1.png"
-        ),
-        cid: "unique@nodemailer.com", // same cid value as in the html img src
-      },
-    ]
-  );
-
-  res.json({ message: "OTP sent to your email", success: true });
 });
 
 // reset password
@@ -278,12 +168,7 @@ export const forgotPassword = catchAsyncError(async (req, res) => {
       .json({ success: false, message: "No user found with this email!" });
   }
 
-  const token = crypto.randomBytes(20).toString("hex");
-
-  user.resetPasswordToken = token;
-  user.resetPasswordExpires = Date.now() + 300000;
-
-  await user.save();
+  const token = createForgotPasswordToken(user.email);
 
   const url =
     process.env.FRONTEND_BASE_URL || "https://nexusnova-frontend.vercel.app";
@@ -326,11 +211,22 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
   if (!token || !password) {
     return res.status(400).json({ error: "Token and password are required" });
   }
+  let decodedPayload: any = "";
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_RESET_SECRET as string);
+    decodedPayload = decoded;
+  } catch {
+    return sendResponse(res, {
+      statusCode: 401,
+      success: false,
+      data: null,
+      message: "Ivalid authentication, try again",
+    });
+  }
 
-  const user = await userModel.findOne({
-    resetPasswordToken: token,
-    resetPasswordExpires: { $gt: Date.now() },
-  });
+  const email = decodedPayload.email as string;
+
+  const user = await userModel.findOne({ email });
 
   if (!user) {
     return res
@@ -340,14 +236,14 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
   const hashedPassword = await bycript.hash(password, 10);
 
   user.password = hashedPassword;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpires = undefined;
 
   await user.save();
 
   res
     .status(200)
-    .json({ success: true, message: "Password has been successfully reset" });
+    .json({
+      success: true,
+      message: "Password has been successfully reset",
+      data: null,
+    });
 });
-
-

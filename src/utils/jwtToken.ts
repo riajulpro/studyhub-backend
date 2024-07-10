@@ -10,3 +10,8 @@ export const createRefreshToken = (user: object) => {
     expiresIn: "30 days",
   });
 };
+export const createForgotPasswordToken = (email: string) => {
+  return jwt.sign({ email }, process.env.JWT_RESET_SECRET as string, {
+    expiresIn: "5m",
+  });
+};
