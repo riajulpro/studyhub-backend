@@ -4,8 +4,19 @@ import sendResponse from "../utils/sendResponse";
 
 export const createLesson = async (req: Request, res: Response) => {
   try {
+    const previousLesson = await Lesson.findOne({ name: req.body.name });
+
+    if (previousLesson) {
+      return sendResponse(res, {
+        statusCode: 400,
+        message: "This lesson is already exist!",
+        data: null,
+        success: false,
+      });
+    }
     const lesson = new Lesson(req.body);
     const savedLesson = await lesson.save();
+
     sendResponse(res, {
       message: "Lesson successfully created!",
       data: savedLesson,

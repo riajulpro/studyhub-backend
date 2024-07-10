@@ -9,6 +9,7 @@ import { catchAsyncError } from "../utils/catchAsyncError";
 import { generateOtp } from "../utils/gtOtp";
 import createToken from "../utils/jwtToken";
 import sendMessage from "../utils/sendMessage";
+
 export const authStateChange = catchAsyncError(async (req, res, next) => {
   const { user } = req;
 
@@ -120,7 +121,7 @@ export const verifyOTP = catchAsyncError(async (req, res, next) => {
     {
       $set: {
         otp: null,
-        isVarify: true,
+        isVarified: true,
       },
     }
   );

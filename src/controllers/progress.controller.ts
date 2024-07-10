@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { updateUserProgress } from "../utils/progressHandler";
+import sendResponse from "../utils/sendResponse";
 
 export const updateProgress = async (req: Request, res: Response) => {
   try {
@@ -16,7 +17,13 @@ export const updateProgress = async (req: Request, res: Response) => {
 
     const response = await updateUserProgress(userId, moduleId, lessonId);
 
-    console.log(response);
+    console.log("pr", response);
+    return sendResponse(res, {
+      statusCode: 201,
+      message: "Progress successfully updated!",
+      success: true,
+      data: response,
+    });
   } catch (error: any) {
     res.status(500).json({
       success: false,
