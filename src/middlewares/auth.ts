@@ -1,4 +1,4 @@
-import { NextFunction, Request, Response } from "express";
+import { NextFunction, Response } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/userModel";
 
@@ -23,11 +23,10 @@ export const isAuthenticatedUser = async (
         success: false,
       });
     }
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET as string);
-<<<<<<< HEAD
-    console.log(decoded);
-=======
->>>>>>> 155b543a0c937fa048997533accf746325af7a14
+    const decoded: any = jwt.verify(
+      token,
+      process.env.JWT_ACCESS_SECRET as string
+    );
 
     if (!decoded)
       return res
@@ -50,11 +49,9 @@ export const isAuthenticatedUser = async (
 
 export const isAdmin = async (req: any, res: Response, next: NextFunction) => {
   try {
-    const isAdmin = req.user.isAdmin;
+    const isAdmin = req.user.role;
 
-    console.log(req.user);
-
-    if (!isAdmin) {
+    if (isAdmin !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Unauthorized access!",
