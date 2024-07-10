@@ -1,8 +1,9 @@
 import bycript from "bcryptjs";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 import userModel from "../models/userModel";
 import { catchAsyncError } from "../utils/catchAsyncError";
 
+import User from "../models/userModel";
 import {
   createAcessToken,
   createForgotPasswordToken,
@@ -16,8 +17,49 @@ export const authStateChange = catchAsyncError(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: "Authenticate user",
-    user,
+    data: user,
   });
+});
+
+export const genereteAccessToken = catchAsyncError(async (req, res) => {
+  const getToken = req.header("Authorization");
+
+  if (!getToken)
+    return res.status(400).json({ msg: "Invalid Authentication." });
+
+  const refreshToken = getToken.split(" ")[1];
+  const refreshTokenSecret = process.env.JWT_REFRESH_SECRET as string;
+
+  try {
+    const decoded = jwt.verify(refreshToken, refreshTokenSecret);
+    const user = (decoded as JwtPayload).user;
+    const accessTOkenPayload = {
+      email: user.email,
+      _id: user._id,
+    };
+
+    const isExistUser = await User.findById(user._id);
+    if (!isExistUser) {
+      return sendResponse(res, {
+        success: false,
+        data: null,
+        message: "User not found",
+        statusCode: 404,
+      });
+    }
+
+    const newAccessToken = createAcessToken(accessTOkenPayload, "1h");
+
+    res.json({
+      success: true,
+      message: "Successfully retrive access token",
+      data: isExistUser,
+      accessToken: newAccessToken,
+    });
+  } catch (error) {
+    console.error("Error decoding or verifying refresh token:", error);
+    res.status(403).json({ message: "Invalid refresh token" });
+  }
 });
 
 // register user
