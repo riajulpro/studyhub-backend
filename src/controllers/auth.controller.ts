@@ -7,7 +7,8 @@ import { OtpTemplate } from "../clients/template/otpTemplat";
 import userModel from "../models/userModel";
 import { catchAsyncError } from "../utils/catchAsyncError";
 import { generateOtp } from "../utils/gtOtp";
-import createToken from "../utils/jwtToken";
+
+import { createAcessToken, createRefreshToken } from "../utils/jwtToken";
 import sendMessage from "../utils/sendMessage";
 export const authStateChange = catchAsyncError(async (req, res, next) => {
   const { user } = req;
@@ -40,15 +41,20 @@ export const register = catchAsyncError(async (req, res, next) => {
     password: hashPass,
     passwordHistory: [hashPass],
   });
-  const user = result.toObject();
+  const { password, otp: OTP, ...user } = result.toObject();
 
-  const token = createToken(user, "7d");
+  const tokenPayload = {
+    _id: result._id,
+    email: result.email,
+  };
+
+  const accessToken = createAcessToken(tokenPayload, "7d");
 
   res.status(200).json({
     success: true,
     message: "User created successfully",
-    user: { ...result.toObject(), password: "****", otp: 0 },
-    token,
+    data: user,
+    accessToken,
   });
 });
 
@@ -81,12 +87,20 @@ export const login = catchAsyncError(async (req, res, next) => {
       .status(203)
       .json({ message: "Wrong password", success: false, data: null });
   }
-  const token = createToken(user, "7d");
+  const tokenPayload = {
+    _id: user._id,
+    email: user.email,
+  };
+  const accessToken = createAcessToken(tokenPayload, "7d");
+  const refreshToken = createRefreshToken(tokenPayload);
+
+  const { password: pass, otp: OTP, ...resUser } = user.toObject();
 
   res.json({
     success: true,
-    token: token,
-    user: { ...user.toObject(), password: "*****" },
+    accessToken,
+    refreshToken,
+    data: resUser,
   });
 });
 
@@ -125,9 +139,17 @@ export const verifyOTP = catchAsyncError(async (req, res, next) => {
     }
   );
 
-  const token = createToken(user, "7d");
+  const tokenPayload = {
+    _id: user._id,
+    email: user.email,
+  };
+  const accessToken = createAcessToken(tokenPayload, "7d");
 
-  res.json({ success: true, message: "User successfuly verified", token });
+  res.json({
+    success: true,
+    message: "User successfuly verified",
+    accessToken,
+  });
 });
 
 // json otp
@@ -328,81 +350,4 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
     .json({ success: true, message: "Password has been successfully reset" });
 });
 
-export const googleSingIn = async (req: Request, res: Response) => {
-  const { accessToken } = req.body;
 
-  const userResponse = await axios.get(
-    "https://www.googleapis.com/oauth2/v3/userinfo",
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    }
-  );
-
-  const { sub: googleId, name, email, picture, given_name } = userResponse.data;
-
-  const user = await userModel.findOne({ $or: [{ googleId }, { email }] });
-
-  if (!user) {
-    const newUser = await userModel.create({
-      googleId,
-      email,
-      picture,
-      firstName: name,
-      lastName: given_name,
-      isVarify: true,
-    });
-    await newUser.save();
-    const token = createToken(newUser, "7d");
-    return res.status(201).json({
-      success: true,
-      token: token,
-      user: { ...newUser.toObject(), password: "*****" },
-    });
-  }
-
-  const token = createToken(user, "7d");
-
-  res.status(201).json({
-    success: true,
-    token: token,
-    user: { ...user.toObject(), password: "*****" },
-  });
-};
-export const facebookSingIn = async (req: Request, res: Response) => {
-  try {
-    const { id, name, email, picture } = req.body;
-    const names = name.split(" ");
-
-    const user = await userModel.findOne({ facebookId: id });
-
-    if (!user) {
-      const newUser = await userModel.create({
-        facebookId: id,
-        email,
-        picture: picture.data.url,
-        firstName: names[0],
-        lastName: names[1],
-        isVarify: true,
-      });
-      await newUser.save();
-      const token = createToken(newUser, "7d");
-      return res.status(201).json({
-        token: token,
-        success: true,
-        user: { ...newUser.toObject(), password: "*****" },
-      });
-    }
-
-    const token = createToken(user, "7d");
-
-    res.status(201).json({
-      success: true,
-      token: token,
-      user: { ...user.toObject(), password: "*****" },
-    });
-  } catch (error) {
-    console.log(error);
-  }
-};
