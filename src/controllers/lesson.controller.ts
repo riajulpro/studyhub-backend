@@ -75,37 +75,45 @@ export const getOneLesson = async (req: Request, res: Response) => {
 };
 
 export const updateLesson = async (req: Request, res: Response) => {
-  const updates: any = Object.keys(req.body);
-  const allowedUpdates = ["name", "questions"];
-  const isValidOperation = updates.every((update: any) =>
-    allowedUpdates.includes(update)
-  );
-
-  if (!isValidOperation) {
-    return res.status(400).send({ error: "Invalid updates!" });
-  }
+  const { id } = req.params;
+  const { name, questions } = req.body;
 
   try {
-    const lesson: any = await Lesson.findById(req.params.id);
+    let lesson = await Lesson.findById(id);
 
     if (!lesson) {
-      return res.status(404).send();
+      return res
+        .status(404)
+        .json({ success: false, message: "Lesson not found" });
     }
 
-    updates.forEach((update: any) => (lesson[update] = req.body[update]));
-    const updatedLesson = await lesson.save();
+    if (name) {
+      lesson.name = name;
+    }
 
-    sendResponse(res, {
-      message: "Lesson successfully updated!",
-      data: updatedLesson,
+    // Check and push new questions
+    if (questions && questions.length > 0) {
+      for (const newQuestion of questions) {
+        const duplicate = lesson.questions.some(
+          (existingQuestion) =>
+            existingQuestion.questionText === newQuestion.questionText
+        );
+
+        if (!duplicate) {
+          lesson.questions.push(newQuestion);
+        }
+      }
+    }
+
+    await lesson.save();
+
+    res.status(200).json({
       success: true,
-      statusCode: 201,
+      message: "Lesson updated successfully",
+      data: lesson,
     });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error });
   }
 };
 

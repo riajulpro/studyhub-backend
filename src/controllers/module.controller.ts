@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import Module from "../models/module.model";
 import sendResponse from "../utils/sendResponse";
+import mongoose from "mongoose";
+import Lesson from "../models/lesson.model";
 
 export const createModule = async (req: Request, res: Response) => {
   try {
@@ -51,8 +53,11 @@ export const getAllModules = async (req: Request, res: Response) => {
 export const getOneModule = async (req: Request, res: Response) => {
   try {
     const module = await Module.findById(req.params.id).populate("lessons");
+
     if (!module) {
-      return res.status(404).send();
+      return res
+        .status(404)
+        .json({ success: false, message: "Module not found!" });
     }
     sendResponse(res, {
       message: "Module successfully retrieved!",
@@ -69,47 +74,52 @@ export const getOneModule = async (req: Request, res: Response) => {
 };
 
 export const updateModule = async (req: Request, res: Response) => {
-  const updates: any = Object.keys(req.body);
-  const allowedUpdates = ["name", "lessons"];
-  const isValidOperation = updates.every((update: any) =>
-    allowedUpdates.includes(update)
-  );
-
-  if (!isValidOperation) {
-    return sendResponse(res, {
-      message: "Invalid updates!",
-      data: null,
-      success: false,
-      statusCode: 400,
-    });
-  }
+  const { id } = req.params;
+  const { name, lessons } = req.body;
 
   try {
-    const module: any = await Module.findById(req.params.id);
+    let module = await Module.findById(id);
 
     if (!module) {
-      return sendResponse(res, {
-        message: "Module not found!",
-        data: null,
-        success: false,
-        statusCode: 404,
-      });
+      return res.status(404).json({ message: "Module not found" });
     }
 
-    updates.forEach((update: any) => (module[update] = req.body[update]));
-    const updatedData = await module.save();
+    if (name) {
+      module.name = name;
+    }
 
-    sendResponse(res, {
-      message: "Module successfully updated!",
-      data: updatedData,
+    if (lessons && lessons.length > 0) {
+      for (const lessonId of lessons) {
+        if (!module.lessons.includes(lessonId)) {
+          if (!mongoose.Types.ObjectId.isValid(lessonId)) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid lesson ID: ${lessonId}`,
+            });
+          }
+
+          const lessonExists = await Lesson.findById(lessonId);
+          if (!lessonExists) {
+            return res.status(404).json({
+              success: false,
+              message: `Lesson not found: ${lessonId}`,
+            });
+          }
+
+          module.lessons.push(lessonId);
+        }
+      }
+    }
+
+    await module.save();
+
+    res.status(200).json({
+      message: "Module updated successfully",
+      data: module,
       success: true,
-      statusCode: 201,
     });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message,
-    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error", error });
   }
 };
 
