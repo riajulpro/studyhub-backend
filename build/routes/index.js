@@ -1,0 +1,24 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const auth_route_1 = __importDefault(require("./auth.route"));
+const contactus_route_1 = __importDefault(require("./contactus.route"));
+const file_upload_route_1 = __importDefault(require("./file.upload.route"));
+const user_route_1 = __importDefault(require("./user.route"));
+const payment_routes_1 = __importDefault(require("./payment.routes"));
+const module_route_1 = __importDefault(require("./module.route"));
+const lesson_route_1 = __importDefault(require("./lesson.route"));
+const progress_route_1 = __importDefault(require("./progress.route"));
+const router = express_1.default.Router();
+router.use("/user", user_route_1.default);
+router.use("/auth", auth_route_1.default);
+router.use("/file", file_upload_route_1.default);
+router.use("/payment", payment_routes_1.default);
+router.use("/contact", contactus_route_1.default);
+router.use("/module", module_route_1.default);
+router.use("/lesson", lesson_route_1.default);
+router.use("/progress", progress_route_1.default);
+exports.default = router;
