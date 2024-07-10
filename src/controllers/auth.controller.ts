@@ -37,24 +37,13 @@ export const register = catchAsyncError(async (req, res, next) => {
 
   const result = await userModel.create({
     ...body,
-    otp: otp,
     password: hashPass,
-    passwordHistory: [hashPass],
   });
-  const { password, ...user } = result.toObject();
-
-  const tokenPayload = {
-    _id: result._id,
-    email: result.email,
-  };
-
-  const accessToken = createAcessToken(tokenPayload, "7d");
 
   res.status(200).json({
     success: true,
     message: "User created successfully",
-    data: user,
-    accessToken,
+    data: null,
   });
 });
 
@@ -239,11 +228,9 @@ export const recoverPassword = catchAsyncError(async (req, res) => {
 
   await user.save();
 
-  res
-    .status(200)
-    .json({
-      success: true,
-      message: "Password has been successfully reset",
-      data: null,
-    });
+  res.status(200).json({
+    success: true,
+    message: "Password has been successfully reset",
+    data: null,
+  });
 });
