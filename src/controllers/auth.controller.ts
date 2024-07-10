@@ -10,7 +10,11 @@ import {
   createRefreshToken,
 } from "../utils/jwtToken";
 import sendMessage from "../utils/sendMessage";
+<<<<<<< HEAD
+
+=======
 import sendResponse from "../utils/sendResponse";
+>>>>>>> 155b543a0c937fa048997533accf746325af7a14
 export const authStateChange = catchAsyncError(async (req, res, next) => {
   const { user } = req;
 
@@ -135,6 +139,111 @@ export const login = catchAsyncError(async (req, res, next) => {
   });
 });
 
+<<<<<<< HEAD
+// varify otp
+export const verifyOTP = catchAsyncError(async (req, res, next) => {
+  const { otp: reqOtp, email } = req.body;
+  if (!reqOtp || !email) {
+    return res.json({
+      message: "email and OTP both are required",
+      success: false,
+    });
+  }
+  const otp = parseInt(reqOtp);
+
+  const user = await userModel.findOne({ otp, email });
+  if (!user) {
+    return res.json({ success: false, message: "Invalid OTP" });
+  }
+
+  const currentTime = new Date();
+  if (user.expireAt && user.expireAt < currentTime) {
+    return res.status(401).json({
+      message: "OTP expired",
+      success: false,
+      sessionExpired: true,
+    });
+  }
+
+  const updateUser = await userModel.findOneAndUpdate(
+    { email: user.email },
+    {
+      $set: {
+        otp: null,
+        isVarified: true,
+      },
+    }
+  );
+
+  const token = createToken(user, "7d");
+
+  res.json({ success: true, message: "User successfuly verified", token });
+});
+
+// json otp
+export const sendOTP = catchAsyncError(async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.json({ message: "Email is required to json otp" });
+  }
+
+  // check for user
+  const user = await userModel.findOne({ email });
+  if (!user) {
+    return res.json({
+      message: `No user found with this email -> ${email}`,
+      success: false,
+    });
+  }
+
+  let otp = generateOtp();
+  let isExistOtp = await userModel.findOne({ otp: otp });
+
+  while (isExistOtp) {
+    otp = generateOtp();
+    isExistOtp = await userModel.findOne({ otp: otp });
+  }
+
+  // Set expiration time for OTP
+  const expireAt = new Date();
+  expireAt.setMinutes(expireAt.getMinutes() + 5); // Set expiration time to 5 minutes from now
+
+  await userModel.updateOne(
+    { email },
+    {
+      $set: {
+        otp: otp,
+        expireAt: expireAt, // Set the expiration time
+      },
+    }
+  );
+
+  sendMessage(
+    "legendxpro123455@gmail.com",
+    email,
+    "Verify Your OTP",
+    OtpTemplate(otp),
+    [
+      {
+        filename: "image.jpg",
+        path: path.join(
+          __dirname,
+
+          "..",
+          "clients",
+          "assets",
+          "image1.png"
+        ),
+        cid: "unique@nodemailer.com", // same cid value as in the html img src
+      },
+    ]
+  );
+
+  res.json({ message: "OTP sent to your email", success: true });
+});
+
+=======
+>>>>>>> 155b543a0c937fa048997533accf746325af7a14
 // reset password
 export const resetPassword = catchAsyncError(async (req: any, res, next) => {
   const { password, oldPassword, email } = req.body;

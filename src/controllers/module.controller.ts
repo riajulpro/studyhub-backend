@@ -4,6 +4,16 @@ import sendResponse from "../utils/sendResponse";
 
 export const createModule = async (req: Request, res: Response) => {
   try {
+    const previousModule = await Module.findOne({ name: req.body.name });
+
+    if (previousModule) {
+      return sendResponse(res, {
+        statusCode: 400,
+        message: "This module is already exist!",
+        data: null,
+        success: false,
+      });
+    }
     const module = new Module(req.body);
     const savedModule = await module.save();
     sendResponse(res, {
