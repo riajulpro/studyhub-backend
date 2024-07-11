@@ -9,6 +9,7 @@ export const isAuthenticatedUser = async (
 ) => {
   try {
     const getToken = req.header("Authorization");
+    console.log(getToken);
 
     if (!getToken)
       return res

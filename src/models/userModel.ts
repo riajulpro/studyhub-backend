@@ -19,6 +19,16 @@ const UserSchema = new mongoose.Schema({
     required: true,
   },
 
+  completedModule: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false,
+    ref: "Module",
+  },
+  completedLesson: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: false,
+    ref: "Lesson",
+  },
   expireAt: {
     type: Date,
   },
